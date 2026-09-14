@@ -2,59 +2,81 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
 
-var smtpHost = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_HOST");
-var smtpPortText = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_PORT");
-var smtpUser = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_USER");
-var smtpPassword = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_PASSWORD");
-var recipient = Environment.GetEnvironmentVariable("CARTEIRO_TO");
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
 
-if (string.IsNullOrWhiteSpace(smtpHost) ||
-    string.IsNullOrWhiteSpace(smtpPortText) ||
-    string.IsNullOrWhiteSpace(smtpUser) ||
-    string.IsNullOrWhiteSpace(smtpPassword) ||
-    string.IsNullOrWhiteSpace(recipient))
+app.MapGet("/", () => Results.Ok(new
 {
-    Console.WriteLine("Configuração incompleta.");
-    Console.WriteLine("Defina CARTEIRO_SMTP_HOST, CARTEIRO_SMTP_PORT, CARTEIRO_SMTP_USER, CARTEIRO_SMTP_PASSWORD e CARTEIRO_TO.");
-    return;
-}
+    application = "Carteiro",
+    stage = 2,
+    description = "API HTTP com envio síncrono de e-mail via SMTP"
+}));
 
-if (!int.TryParse(smtpPortText, out var smtpPort))
+app.MapPost("/emails", async (SendEmailRequest request) =>
 {
-    Console.WriteLine("CARTEIRO_SMTP_PORT precisa ser um número inteiro.");
-    return;
-}
+    var smtpHost = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_HOST");
+    var smtpPortText = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_PORT");
+    var smtpUser = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_USER");
+    var smtpPassword = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_PASSWORD");
 
-var message = new MimeMessage();
-message.From.Add(MailboxAddress.Parse(smtpUser));
-message.To.Add(MailboxAddress.Parse(recipient));
-message.Subject = "Primeira entrega do Carteiro";
-message.Body = new TextPart("plain")
-{
-    Text = "Olá!\n\nEste e-mail foi enviado pela primeira versão do Carteiro.\n\n— Carteiro"
-};
+    if (string.IsNullOrWhiteSpace(smtpHost) ||
+        string.IsNullOrWhiteSpace(smtpPortText) ||
+        string.IsNullOrWhiteSpace(smtpUser) ||
+        string.IsNullOrWhiteSpace(smtpPassword))
+    {
+        return Results.Problem(
+            "Configuração SMTP incompleta. Defina CARTEIRO_SMTP_HOST, CARTEIRO_SMTP_PORT, CARTEIRO_SMTP_USER e CARTEIRO_SMTP_PASSWORD.");
+    }
 
-Console.WriteLine($"Preparando e-mail para {recipient}...");
+    if (!int.TryParse(smtpPortText, out var smtpPort))
+    {
+        return Results.Problem("CARTEIRO_SMTP_PORT precisa ser um número inteiro.");
+    }
 
-try
-{
-    using var client = new SmtpClient();
+    if (string.IsNullOrWhiteSpace(request.To) ||
+        string.IsNullOrWhiteSpace(request.Subject) ||
+        string.IsNullOrWhiteSpace(request.Body))
+    {
+        return Results.BadRequest(new
+        {
+            error = "Os campos to, subject e body são obrigatórios."
+        });
+    }
 
-    Console.WriteLine($"Conectando ao servidor SMTP {smtpHost}:{smtpPort}...");
-    await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
+    var message = new MimeMessage();
+    message.From.Add(MailboxAddress.Parse(smtpUser));
+    message.To.Add(MailboxAddress.Parse(request.To));
+    message.Subject = request.Subject;
+    message.Body = new TextPart("plain")
+    {
+        Text = request.Body
+    };
 
-    Console.WriteLine("Autenticando no servidor SMTP...");
-    await client.AuthenticateAsync(smtpUser, smtpPassword);
+    try
+    {
+        using var client = new SmtpClient();
 
-    Console.WriteLine("Enviando mensagem...");
-    await client.SendAsync(message);
+        await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
+        await client.AuthenticateAsync(smtpUser, smtpPassword);
+        await client.SendAsync(message);
+        await client.DisconnectAsync(true);
 
-    await client.DisconnectAsync(true);
+        return Results.Ok(new
+        {
+            status = "sent",
+            to = request.To,
+            message = "E-mail entregue ao servidor SMTP com sucesso."
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            title: "Falha ao enviar o e-mail",
+            statusCode: StatusCodes.Status502BadGateway);
+    }
+});
 
-    Console.WriteLine("E-mail entregue ao servidor SMTP com sucesso.");
-}
-catch (Exception ex)
-{
-    Console.WriteLine("Falha ao enviar o e-mail.");
-    Console.WriteLine(ex.Message);
-}
+app.Run();
+
+record SendEmailRequest(string To, string Subject, string Body);
