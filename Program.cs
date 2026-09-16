@@ -20,8 +20,6 @@ app.MapPost("/emails", async (SendEmailRequest request) =>
     var smtpPassword = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_PASSWORD");
     var from = Environment.GetEnvironmentVariable("CARTEIRO_FROM");
 
-    var from = Environment.GetEnvironmentVariable("CARTEIRO_FROM");
-
     if (string.IsNullOrWhiteSpace(smtpHost) ||
         string.IsNullOrWhiteSpace(smtpPortText) ||
         string.IsNullOrWhiteSpace(smtpUser) ||
