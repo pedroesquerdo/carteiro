@@ -18,16 +18,18 @@ app.MapPost("/emails", async (SendEmailRequest request) =>
     var smtpPortText = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_PORT");
     var smtpUser = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_USER");
     var smtpPassword = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_PASSWORD");
+    var from = Environment.GetEnvironmentVariable("CARTEIRO_FROM");
 
     var from = Environment.GetEnvironmentVariable("CARTEIRO_FROM");
 
     if (string.IsNullOrWhiteSpace(smtpHost) ||
         string.IsNullOrWhiteSpace(smtpPortText) ||
         string.IsNullOrWhiteSpace(smtpUser) ||
-        string.IsNullOrWhiteSpace(smtpPassword))
+        string.IsNullOrWhiteSpace(smtpPassword) ||
+        string.IsNullOrWhiteSpace(from))
     {
         return Results.Problem(
-            "Configuração SMTP incompleta. Defina CARTEIRO_SMTP_HOST, CARTEIRO_SMTP_PORT, CARTEIRO_SMTP_USER e CARTEIRO_SMTP_PASSWORD.");
+            "Configuração SMTP incompleta. Defina CARTEIRO_SMTP_HOST, CARTEIRO_SMTP_PORT, CARTEIRO_SMTP_USER, CARTEIRO_SMTP_PASSWORD e CARTEIRO_FROM.");
     }
 
     if (!int.TryParse(smtpPortText, out var smtpPort))
@@ -66,6 +68,7 @@ app.MapPost("/emails", async (SendEmailRequest request) =>
         return Results.Ok(new
         {
             status = "sent",
+            from,
             to = request.To,
             message = "E-mail entregue ao servidor SMTP com sucesso."
         });
