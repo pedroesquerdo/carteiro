@@ -19,6 +19,8 @@ app.MapPost("/emails", async (SendEmailRequest request) =>
     var smtpUser = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_USER");
     var smtpPassword = Environment.GetEnvironmentVariable("CARTEIRO_SMTP_PASSWORD");
 
+    var from = Environment.GetEnvironmentVariable("CARTEIRO_FROM");
+
     if (string.IsNullOrWhiteSpace(smtpHost) ||
         string.IsNullOrWhiteSpace(smtpPortText) ||
         string.IsNullOrWhiteSpace(smtpUser) ||
@@ -44,7 +46,7 @@ app.MapPost("/emails", async (SendEmailRequest request) =>
     }
 
     var message = new MimeMessage();
-    message.From.Add(MailboxAddress.Parse(smtpUser));
+    message.From.Add(MailboxAddress.Parse(from));
     message.To.Add(MailboxAddress.Parse(request.To));
     message.Subject = request.Subject;
     message.Body = new TextPart("plain")
