@@ -28,7 +28,7 @@ Aprendemos a diferença entre:
 - autenticação
 - TLS/STARTTLS
 
-## Etapa 2 — API HTTP com envio síncrono
+## Etapa 2 — API HTTP com envio síncrono ✅
 
 Agora o Carteiro é uma API ASP.NET Core.
 
@@ -66,6 +66,7 @@ As credenciais ficam em variáveis de ambiente:
 - `CARTEIRO_SMTP_PORT`
 - `CARTEIRO_SMTP_USER`
 - `CARTEIRO_SMTP_PASSWORD`
+- `CARTEIRO_FROM`
 
 Exemplo com Gmail no PowerShell:
 
@@ -74,6 +75,7 @@ $env:CARTEIRO_SMTP_HOST="smtp.gmail.com"
 $env:CARTEIRO_SMTP_PORT="587"
 $env:CARTEIRO_SMTP_USER="seuemail@gmail.com"
 $env:CARTEIRO_SMTP_PASSWORD="SENHA_DE_APP"
+$env:CARTEIRO_FROM="seuemail@gmail.com"
 ```
 
 > Nunca coloque sua senha ou senha de app no GitHub.
@@ -94,6 +96,15 @@ Now listening on: http://localhost:5000
 ```
 
 A porta pode variar. Use o endereço mostrado pelo `dotnet run`.
+
+Abra esse endereço no navegador para usar a interface do Carteiro. Nela é possível
+enviar uma mensagem e acompanhar o histórico persistido no SQLite.
+
+O status técnico da aplicação continua disponível em:
+
+```http
+GET /api/status
+```
 
 ## Testar a API
 
@@ -173,11 +184,29 @@ responder HTTP
 
 Se o servidor SMTP demorar, a requisição HTTP também demora.
 
+## Etapa 3 — persistência de e-mails e status
+
+Cada solicitação válida agora é registrada em `carteiro.db`, um banco SQLite local,
+antes da tentativa de envio. O registro começa com status `pending` e termina como:
+
+- `sent`: o servidor SMTP aceitou o e-mail;
+- `failed`: ocorreu uma falha, armazenada em `errorMessage`.
+
+O envio ainda é síncrono nesta etapa. A persistência prepara o projeto para separar
+o recebimento da requisição e o processamento do e-mail nas próximas etapas.
+
+Novas consultas:
+
+```http
+GET /emails
+GET /emails/{id}
+```
+
 ## Próximas etapas
 
 1. Envio simples via SMTP ✅
 2. Transformar o envio em uma API HTTP ✅
-3. Persistir e-mails e status
+3. Persistir e-mails e status ✅
 4. Introduzir processamento assíncrono
 5. RabbitMQ: producer, queue e consumer
 6. ACK/NACK e retry

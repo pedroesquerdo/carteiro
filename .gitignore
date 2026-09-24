@@ -4,3 +4,6 @@ obj/
 *.user
 *.suo
 .env
+carteiro.db
+carteiro.db-shm
+carteiro.db-wal

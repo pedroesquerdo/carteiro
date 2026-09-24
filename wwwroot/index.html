@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Interface local da API Carteiro para envio e acompanhamento de e-mails.">
+    <title>Carteiro — Painel de envios</title>
+    <link rel="stylesheet" href="/site.css">
+    <script src="/site.js" defer></script>
+</head>
+<body>
+    <div class="route-stripe" aria-hidden="true"></div>
+    <header class="topbar">
+        <a class="brand" href="/" aria-label="Carteiro — início">
+            <span class="brand-mark" aria-hidden="true">✉</span>
+            <span>CARTEIRO</span>
+        </a>
+        <div class="connection"><span class="status-dot" aria-hidden="true"></span> Central conectada</div>
+    </header>
+
+    <main>
+        <section class="intro" aria-labelledby="page-title">
+            <p class="eyebrow">Central de distribuição digital</p>
+            <h1 id="page-title">Sua mensagem,<br><em>bem encaminhada.</em></h1>
+            <p>Prepare o envio, entregue ao Carteiro e acompanhe cada registro até o servidor de destino.</p>
+        </section>
+
+        <div class="workspace">
+            <section class="card composer" aria-labelledby="composer-title">
+                <div class="card-heading">
+                    <div>
+                        <p class="step">Guichê 01</p>
+                        <h2 id="composer-title">Preparar remessa</h2>
+                    </div>
+                </div>
+
+                <form id="email-form">
+                    <label for="to">Destinatário</label>
+                    <input id="to" name="to" type="email" placeholder="nome@exemplo.com" autocomplete="email" required>
+
+                    <label for="subject">Assunto</label>
+                    <input id="subject" name="subject" type="text" placeholder="Assunto do e-mail" maxlength="200" required>
+
+                    <label for="body">Mensagem</label>
+                    <textarea id="body" name="body" rows="8" placeholder="Escreva sua mensagem..." required></textarea>
+
+                    <div id="form-message" class="form-message" role="status" aria-live="polite"></div>
+                    <button id="submit-button" type="submit">Despachar mensagem <span aria-hidden="true">→</span></button>
+                </form>
+            </section>
+
+            <section class="card history" aria-labelledby="history-title">
+                <div class="card-heading history-heading">
+                    <div>
+                        <p class="step">Rastreamento</p>
+                        <h2 id="history-title">Últimas remessas</h2>
+                    </div>
+                    <button id="refresh-button" class="secondary-button" type="button">Atualizar</button>
+                </div>
+
+                <div id="email-list" class="email-list" aria-live="polite">
+                    <p class="empty-state">Carregando histórico...</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <span>CARTEIRO · Serviço digital</span>
+        <span>API .NET · SQLite · Amazon SES</span>
+    </footer>
+</body>
+</html>
