@@ -202,12 +202,29 @@ GET /emails
 GET /emails/{id}
 ```
 
+## Etapa 4 — processamento assíncrono
+
+O endpoint de envio não espera mais a comunicação com o servidor SMTP. Ele persiste
+a remessa com status `queued`, coloca seu identificador em uma fila interna e retorna
+imediatamente `202 Accepted`.
+
+Um `BackgroundService` consome a fila e atualiza o registro durante o processamento:
+
+```text
+queued -> processing -> sent
+                     -> failed
+```
+
+Se a aplicação for encerrada durante um envio, registros `queued` ou `processing`
+são recolocados na fila quando ela iniciar novamente. A interface atualiza o
+rastreamento automaticamente a cada cinco segundos.
+
 ## Próximas etapas
 
 1. Envio simples via SMTP ✅
 2. Transformar o envio em uma API HTTP ✅
 3. Persistir e-mails e status ✅
-4. Introduzir processamento assíncrono
+4. Introduzir processamento assíncrono ✅
 5. RabbitMQ: producer, queue e consumer
 6. ACK/NACK e retry
 7. Dead Letter Queue

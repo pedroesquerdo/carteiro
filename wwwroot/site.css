@@ -144,6 +144,8 @@ button { border: 0; border-radius: .25rem; cursor: pointer; font-weight: 800; }
 .badge.sent { color: var(--success); background: var(--success-bg); }
 .badge.failed { color: var(--error); background: var(--error-bg); }
 .badge.pending { color: #725b1c; background: #f8efcf; }
+.badge.queued { color: #715800; background: var(--yellow-soft); }
+.badge.processing { color: var(--accent-dark); background: #e3effa; }
 .email-subject { margin-bottom: .45rem; font-size: 1.02rem; font-weight: 700; }
 .email-meta { margin: 0; color: var(--muted); font-size: .78rem; }
 .email-error { margin: .7rem 0 0; color: var(--error); font-size: .8rem; line-height: 1.45; }

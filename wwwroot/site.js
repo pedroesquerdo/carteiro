@@ -7,7 +7,9 @@ const emailList = document.querySelector("#email-list");
 const statusLabels = {
     sent: "Enviado",
     failed: "Falhou",
-    pending: "Pendente"
+    pending: "Pendente",
+    queued: "Na fila",
+    processing: "Em trânsito"
 };
 
 function escapeHtml(value) {
@@ -80,7 +82,7 @@ form.addEventListener("submit", async event => {
             throw new Error(result.detail ?? result.error ?? "Falha ao enviar o e-mail.");
         }
 
-        showMessage(`Remessa #${result.id} entregue ao servidor SMTP.`, "success");
+        showMessage(`Remessa #${result.id} recebida e colocada na fila.`, "success");
         form.reset();
         await loadEmails();
     } catch (error) {
@@ -94,3 +96,4 @@ form.addEventListener("submit", async event => {
 
 refreshButton.addEventListener("click", loadEmails);
 loadEmails();
+setInterval(loadEmails, 5000);
