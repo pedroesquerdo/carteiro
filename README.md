@@ -249,8 +249,17 @@ Configurações opcionais do broker:
 - `CARTEIRO_RABBITMQ_VHOST` (padrão: `/`)
 - `CARTEIRO_RABBITMQ_QUEUE` (padrão: `carteiro.emails`)
 
-Nesta etapa o consumer usa confirmação automática. ACK/NACK manual, retry e filas
-de mensagens não entregues entram nas próximas etapas.
+## Etapa 6 — ACK/NACK e retry
+
+O consumer usa confirmação manual e processa somente uma mensagem por vez:
+
+- `ACK`: enviado apenas depois que o SMTP aceita a mensagem e o status `sent` é salvo;
+- `NACK + requeue`: devolve a mensagem à fila quando uma tentativa falha;
+- `NACK sem requeue`: descarta a mensagem após a terceira falha.
+
+Cada tentativa é registrada no SQLite. Os intervalos atuais são progressivos: dois
+segundos após a primeira falha e quatro segundos após a segunda. A Dead Letter
+Queue será introduzida na próxima etapa para preservar as mensagens descartadas.
 
 ## Próximas etapas
 
@@ -259,7 +268,7 @@ de mensagens não entregues entram nas próximas etapas.
 3. Persistir e-mails e status ✅
 4. Introduzir processamento assíncrono ✅
 5. RabbitMQ: producer, queue e consumer ✅
-6. ACK/NACK e retry
+6. ACK/NACK e retry ✅
 7. Dead Letter Queue
 8. Idempotência
 9. Templates e anexos

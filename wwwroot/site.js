@@ -50,7 +50,7 @@ async function loadEmails() {
                     <span class="badge ${escapeHtml(email.status)}">${statusLabels[email.status] ?? email.status}</span>
                 </div>
                 <p class="email-subject">${escapeHtml(email.subject)}</p>
-                <p class="email-meta">#${email.id} · ${formatDate(email.createdAt)}</p>
+                <p class="email-meta">#${email.id} · ${formatDate(email.createdAt)}${email.attemptCount ? ` · tentativa ${email.attemptCount}/3` : ""}</p>
                 ${email.errorMessage ? `<p class="email-error">${escapeHtml(email.errorMessage)}</p>` : ""}
             </article>
         `).join("");

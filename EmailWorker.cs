@@ -11,6 +11,8 @@ public sealed class EmailWorker(
     EmailRepository repository,
     ILogger<EmailWorker> logger) : BackgroundService
 {
+    private const int MaxAttempts = 3;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -45,6 +47,12 @@ public sealed class EmailWorker(
             arguments: null,
             cancellationToken: cancellationToken);
 
+        await channel.BasicQosAsync(
+            prefetchSize: 0,
+            prefetchCount: 1,
+            global: false,
+            cancellationToken: cancellationToken);
+
         foreach (var emailId in await repository.GetIdsByStatusAsync("processing"))
         {
             await repository.UpdateStatusAsync(emailId, "queued");
@@ -57,17 +65,22 @@ public sealed class EmailWorker(
             var value = Encoding.UTF8.GetString(eventArgs.Body.Span);
             if (long.TryParse(value, out var emailId))
             {
-                await ProcessEmailAsync(emailId, cancellationToken);
+                await ProcessEmailAsync(channel, eventArgs.DeliveryTag, emailId, cancellationToken);
             }
             else
             {
                 logger.LogWarning("Mensagem inválida recebida do RabbitMQ: {Message}", value);
+                await channel.BasicNackAsync(
+                    eventArgs.DeliveryTag,
+                    multiple: false,
+                    requeue: false,
+                    cancellationToken: cancellationToken);
             }
         };
 
         await channel.BasicConsumeAsync(
             queue: settings.Queue,
-            autoAck: true,
+            autoAck: false,
             consumer: consumer,
             cancellationToken: cancellationToken);
 
@@ -75,16 +88,26 @@ public sealed class EmailWorker(
         await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
     }
 
-    private async Task ProcessEmailAsync(long emailId, CancellationToken cancellationToken)
+    private async Task ProcessEmailAsync(
+        IChannel channel,
+        ulong deliveryTag,
+        long emailId,
+        CancellationToken cancellationToken)
     {
         var email = await repository.GetAsync(emailId);
         if (email is null)
         {
             logger.LogWarning("E-mail {EmailId} não foi encontrado.", emailId);
+            await channel.BasicNackAsync(
+                deliveryTag,
+                multiple: false,
+                requeue: false,
+                cancellationToken: cancellationToken);
             return;
         }
 
-        await repository.UpdateStatusAsync(emailId, "processing");
+        var attempt = email.AttemptCount + 1;
+        await repository.StartAttemptAsync(emailId);
 
         try
         {
@@ -102,6 +125,10 @@ public sealed class EmailWorker(
             await client.DisconnectAsync(true, cancellationToken);
 
             await repository.UpdateStatusAsync(emailId, "sent", sentAt: DateTimeOffset.UtcNow);
+            await channel.BasicAckAsync(
+                deliveryTag,
+                multiple: false,
+                cancellationToken: cancellationToken);
             logger.LogInformation("E-mail {EmailId} enviado para {Recipient}.", emailId, email.To);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -110,8 +137,46 @@ public sealed class EmailWorker(
         }
         catch (Exception exception)
         {
-            await repository.UpdateStatusAsync(emailId, "failed", exception.Message);
-            logger.LogError(exception, "Falha ao enviar o e-mail {EmailId}.", emailId);
+            if (attempt < MaxAttempts)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
+                await repository.UpdateStatusAsync(
+                    emailId,
+                    "queued",
+                    $"Tentativa {attempt}/{MaxAttempts}: {exception.Message}");
+
+                logger.LogWarning(
+                    exception,
+                    "Tentativa {Attempt}/{MaxAttempts} do e-mail {EmailId} falhou. Retry em {DelaySeconds}s.",
+                    attempt,
+                    MaxAttempts,
+                    emailId,
+                    delay.TotalSeconds);
+
+                await Task.Delay(delay, cancellationToken);
+                await channel.BasicNackAsync(
+                    deliveryTag,
+                    multiple: false,
+                    requeue: true,
+                    cancellationToken: cancellationToken);
+            }
+            else
+            {
+                await repository.UpdateStatusAsync(
+                    emailId,
+                    "failed",
+                    $"Tentativa {attempt}/{MaxAttempts}: {exception.Message}");
+                await channel.BasicNackAsync(
+                    deliveryTag,
+                    multiple: false,
+                    requeue: false,
+                    cancellationToken: cancellationToken);
+                logger.LogError(
+                    exception,
+                    "E-mail {EmailId} descartado após {Attempts} tentativas.",
+                    emailId,
+                    attempt);
+            }
         }
     }
 

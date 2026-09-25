@@ -17,8 +17,8 @@ app.UseStaticFiles();
 app.MapGet("/api/status", () => Results.Ok(new
 {
     application = "Carteiro",
-    stage = 5,
-    description = "API HTTP com persistência e mensageria via RabbitMQ"
+    stage = 6,
+    description = "API HTTP com ACK/NACK manual e retry via RabbitMQ"
 }));
 
 app.MapGet("/emails", async () => Results.Ok(await repository.ListAsync()));

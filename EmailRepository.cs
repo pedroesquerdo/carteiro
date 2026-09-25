@@ -16,11 +16,35 @@ public sealed class EmailRepository(string connectionString)
                 status TEXT NOT NULL,
                 error_message TEXT NULL,
                 created_at TEXT NOT NULL,
-                sent_at TEXT NULL
+                sent_at TEXT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX IF NOT EXISTS idx_emails_status ON emails(status);
             """;
         await command.ExecuteNonQueryAsync();
+
+        var columnsCommand = connection.CreateCommand();
+        columnsCommand.CommandText = "PRAGMA table_info(emails);";
+        var hasAttemptCount = false;
+        await using (var reader = await columnsCommand.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                if (reader.GetString(1) == "attempt_count")
+                {
+                    hasAttemptCount = true;
+                    break;
+                }
+            }
+        }
+
+        if (!hasAttemptCount)
+        {
+            var migrationCommand = connection.CreateCommand();
+            migrationCommand.CommandText =
+                "ALTER TABLE emails ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0;";
+            await migrationCommand.ExecuteNonQueryAsync();
+        }
     }
 
     public async Task<IReadOnlyList<EmailRecord>> ListAsync()
@@ -29,7 +53,7 @@ public sealed class EmailRepository(string connectionString)
         await using var connection = await OpenConnectionAsync();
         var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, recipient, subject, body, status, error_message, created_at, sent_at
+            SELECT id, recipient, subject, body, status, error_message, created_at, sent_at, attempt_count
             FROM emails
             ORDER BY id DESC;
             """;
@@ -48,7 +72,7 @@ public sealed class EmailRepository(string connectionString)
         await using var connection = await OpenConnectionAsync();
         var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, recipient, subject, body, status, error_message, created_at, sent_at
+            SELECT id, recipient, subject, body, status, error_message, created_at, sent_at, attempt_count
             FROM emails
             WHERE id = $id;
             """;
@@ -117,6 +141,19 @@ public sealed class EmailRepository(string connectionString)
         await command.ExecuteNonQueryAsync();
     }
 
+    public async Task StartAttemptAsync(long id)
+    {
+        await using var connection = await OpenConnectionAsync();
+        var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE emails
+            SET status = 'processing', error_message = NULL, attempt_count = attempt_count + 1
+            WHERE id = $id;
+            """;
+        command.Parameters.AddWithValue("$id", id);
+        await command.ExecuteNonQueryAsync();
+    }
+
     private async Task<SqliteConnection> OpenConnectionAsync()
     {
         var connection = new SqliteConnection(connectionString);
@@ -136,7 +173,8 @@ public sealed class EmailRepository(string connectionString)
         reader.GetString(4),
         reader.IsDBNull(5) ? null : reader.GetString(5),
         DateTimeOffset.Parse(reader.GetString(6)),
-        reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7)));
+        reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7)),
+        reader.GetInt32(8));
 }
 
 public sealed record EmailRecord(
@@ -147,4 +185,5 @@ public sealed record EmailRecord(
     string Status,
     string? ErrorMessage,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? SentAt);
+    DateTimeOffset? SentAt,
+    int AttemptCount);
