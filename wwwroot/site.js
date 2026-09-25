@@ -82,7 +82,7 @@ form.addEventListener("submit", async event => {
             throw new Error(result.detail ?? result.error ?? "Falha ao enviar o e-mail.");
         }
 
-        showMessage(`Remessa #${result.id} recebida e colocada na fila.`, "success");
+        showMessage(`Remessa #${result.id} publicada no RabbitMQ.`, "success");
         form.reset();
         await loadEmails();
     } catch (error) {

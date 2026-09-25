@@ -75,7 +75,7 @@ public sealed class EmailRepository(string connectionString)
         return (long)(await command.ExecuteScalarAsync())!;
     }
 
-    public async Task<IReadOnlyList<long>> GetRecoverableIdsAsync()
+    public async Task<IReadOnlyList<long>> GetIdsByStatusAsync(string status)
     {
         var ids = new List<long>();
         await using var connection = await OpenConnectionAsync();
@@ -83,9 +83,10 @@ public sealed class EmailRepository(string connectionString)
         command.CommandText = """
             SELECT id
             FROM emails
-            WHERE status IN ('queued', 'processing')
+            WHERE status = $status
             ORDER BY id;
             """;
+        command.Parameters.AddWithValue("$status", status);
 
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())

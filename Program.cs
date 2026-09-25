@@ -1,18 +1,15 @@
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton(new EmailRepository("Data Source=carteiro.db"));
-builder.Services.AddSingleton<EmailQueue>();
+builder.Services.AddSingleton<RabbitMqConnection>();
+builder.Services.AddSingleton<RabbitMqPublisher>();
 builder.Services.AddHostedService<EmailWorker>();
 
 var app = builder.Build();
 var repository = app.Services.GetRequiredService<EmailRepository>();
-var queue = app.Services.GetRequiredService<EmailQueue>();
+var publisher = app.Services.GetRequiredService<RabbitMqPublisher>();
 
 await repository.InitializeAsync();
-foreach (var emailId in await repository.GetRecoverableIdsAsync())
-{
-    await queue.EnqueueAsync(emailId);
-}
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -20,8 +17,8 @@ app.UseStaticFiles();
 app.MapGet("/api/status", () => Results.Ok(new
 {
     application = "Carteiro",
-    stage = 4,
-    description = "API HTTP com persistência e processamento assíncrono de e-mails"
+    stage = 5,
+    description = "API HTTP com persistência e mensageria via RabbitMQ"
 }));
 
 app.MapGet("/emails", async () => Results.Ok(await repository.ListAsync()));
@@ -47,14 +44,27 @@ app.MapPost("/emails", async (SendEmailRequest request) =>
     }
 
     var emailId = await repository.CreateAsync(request);
-    await queue.EnqueueAsync(emailId);
+
+    try
+    {
+        await publisher.PublishAsync(emailId);
+    }
+    catch (Exception exception)
+    {
+        await repository.UpdateStatusAsync(emailId, "failed", $"RabbitMQ: {exception.Message}");
+        return Results.Problem(
+            detail: "A remessa foi registrada, mas não foi possível publicá-la no RabbitMQ.",
+            title: "Fila indisponível",
+            statusCode: StatusCodes.Status503ServiceUnavailable,
+            extensions: new Dictionary<string, object?> { ["emailId"] = emailId });
+    }
 
     return Results.Accepted($"/emails/{emailId}", new
     {
         id = emailId,
         status = "queued",
         to = request.To,
-        message = "E-mail registrado e colocado na fila para envio."
+        message = "E-mail registrado e publicado no RabbitMQ."
     });
 });
 

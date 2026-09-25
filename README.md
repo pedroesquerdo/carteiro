@@ -57,6 +57,7 @@ Essa limitação é proposital: ela será usada depois para entender por que pro
 
 - .NET 8 SDK
 - Uma conta/provedor que permita envio via SMTP
+- Docker Desktop ou uma instância acessível do RabbitMQ
 
 ## Configuração SMTP
 
@@ -219,13 +220,45 @@ Se a aplicação for encerrada durante um envio, registros `queued` ou `processi
 são recolocados na fila quando ela iniciar novamente. A interface atualiza o
 rastreamento automaticamente a cada cinco segundos.
 
+## Etapa 5 — RabbitMQ
+
+A fila em memória foi substituída pelo RabbitMQ. A API atua como producer: registra
+a remessa no SQLite e publica somente seu identificador na fila durável
+`carteiro.emails`. Um `BackgroundService` atua como consumer, busca os dados no
+SQLite e realiza o envio pelo servidor SMTP.
+
+```text
+POST /emails -> SQLite -> RabbitMQ -> consumer -> Amazon SES
+```
+
+Para iniciar o RabbitMQ localmente:
+
+```powershell
+docker compose up -d
+```
+
+O painel de administração fica em <http://localhost:15672>, com usuário e senha
+`carteiro` no ambiente local criado pelo `compose.yaml`.
+
+Configurações opcionais do broker:
+
+- `CARTEIRO_RABBITMQ_HOST` (padrão: `localhost`)
+- `CARTEIRO_RABBITMQ_PORT` (padrão: `5672`)
+- `CARTEIRO_RABBITMQ_USER` (padrão local: `carteiro`)
+- `CARTEIRO_RABBITMQ_PASSWORD` (padrão local: `carteiro`)
+- `CARTEIRO_RABBITMQ_VHOST` (padrão: `/`)
+- `CARTEIRO_RABBITMQ_QUEUE` (padrão: `carteiro.emails`)
+
+Nesta etapa o consumer usa confirmação automática. ACK/NACK manual, retry e filas
+de mensagens não entregues entram nas próximas etapas.
+
 ## Próximas etapas
 
 1. Envio simples via SMTP ✅
 2. Transformar o envio em uma API HTTP ✅
 3. Persistir e-mails e status ✅
 4. Introduzir processamento assíncrono ✅
-5. RabbitMQ: producer, queue e consumer
+5. RabbitMQ: producer, queue e consumer ✅
 6. ACK/NACK e retry
 7. Dead Letter Queue
 8. Idempotência
